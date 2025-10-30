@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Kết quả phân tích</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>📊 Kết quả phân tích: {{ analysis_type }}</h1>
+    
+    {% if analysis_type == 'line_count' %}
+        <h2>Tổng Số Dòng</h2>
+    {% elif analysis_type == 'word_count' %}
+        <h2>Top 10 Kết quả Word Count</h2>
+    {% elif analysis_type == 'avg_delay_by_origin' %}
+        <h2>Độ Trễ Đến Trung Bình theo Sân bay</h2>
+    {% elif analysis_type == 'percentage_delayed_flights' %}
+        <h2>Tỷ lệ Chuyến bay Bị Trễ theo Sân bay</h2>
+    {% elif analysis_type == 'delay_causes_breakdown' %}
+        <h2>Tỷ trọng Nguyên nhân Độ trễ (Carrier, Weather, NAS, Security, Late Aircraft)</h2>
+    
+    {% elif analysis_type == 'feature_importance_analysis' %}
+        <h2>Phân tích Tổng quan về Độ trễ</h2>
+        
+    {% elif analysis_type == 'delay_prediction' %}
+        <h2>Dự đoán Độ trễ & Nguyên nhân cho một Bản ghi</h2>
+        
+        {% if prediction_data %}
+            <div style="border: 2px solid #007bff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <h3>⭐ So sánh Dự đoán và Thực tế: {{ prediction_data.match_status }}</h3>
+                <table border="1" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background-color: #f0f0f0;">
+                            <th style="padding: 10px;">Chỉ tiêu</th>
+                            <th style="padding: 10px;">Dự đoán Mô hình (XGBoost)</th>
+                            <th style="padding: 10px;">Thực tế (Data Gốc)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">Trạng thái Trễ (Delay)</td>
+                            <td style="padding: 10px; color: {% if 'CÓ KHẢ NĂNG BỊ TRỄ' in prediction_data.delay_prediction %}red{% else %}green{% endif %}; font-weight: bold;">{{ prediction_data.delay_prediction }} ({{ prediction_data.delay_probability }})</td>
+                            <td style="padding: 10px; color: {% if 'TRỄ THỰC TẾ' in prediction_data.actual_status %}red{% else %}green{% endif %}; font-weight: bold;">{{ prediction_data.actual_status }} (ArrDelay: {{ prediction_data.actual_arr_delay }})</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">Nguyên nhân Trễ</td>
+                            <td style="padding: 10px;">{{ prediction_data.cause_prediction }}</td>
+                            <td style="padding: 10px;">{{ prediction_data.actual_cause_detail | safe }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <h3>Dữ liệu Đặc trưng (Features) dùng để Dự đoán:</h3>
+            <pre style="background: #e9ecef; padding: 10px; border-radius: 5px;">{{ prediction_data.processed_features }}</pre>
+
+            <h3>Bản ghi Dữ liệu Gốc (Dòng đầu tiên trong file):</h3>
+            <pre style="white-space: pre-wrap; word-wrap: break-word; background: #eee; padding: 15px; border-radius: 5px;">
+{{ prediction_data.original_raw_line }}
+            </pre>
+
+        {% else %}
+            <p style="color: red;">Không có dữ liệu dự đoán để hiển thị.</p>
+        {% endif %}
+        
+    {% else %}
+        <h2>Kết quả Phân tích</h2>
+    {% endif %}
+
+    {% if analysis_type == 'feature_importance_analysis' and (plot_base64.delay_rate_plot or plot_base64.delay_cause_plot) %}
+        <div style="margin-top: 20px; text-align: center;">
+            {% if plot_base64.delay_rate_plot %}
+                <h3>Biểu đồ 1: Tỷ lệ Chuyến bay Bị trễ</h3>
+                <img src="{{ plot_base64.delay_rate_plot }}" alt="Biểu đồ Tỷ lệ Trễ" style="max-width: 90%; height: auto; border: 1px solid #ccc; margin-bottom: 20px;">
+            {% endif %}
+            
+            {% if plot_base64.delay_cause_plot %}
+                <h3>Biểu đồ 2: Tỷ trọng Nguyên nhân Trễ</h3>
+                <img src="{{ plot_base64.delay_cause_plot }}" alt="Biểu đồ Nguyên nhân Trễ" style="max-width: 90%; height: auto; border: 1px solid #ccc;">
+            {% endif %}
+            
+            <br>
+            <small>Các biểu đồ được tạo bằng Matplotlib trong PySpark</small>
+        </div>
+    {% elif plot_base64 and analysis_type != 'feature_importance_analysis' %}
+    <div style="margin-top: 20px; text-align: center;">
+        <img src="{{ plot_base64 }}" alt="Biểu đồ kết quả phân tích" style="max-width: 90%; height: auto; border: 1px solid #ccc;">
+        <br>
+        <small>Biểu đồ được tạo bằng Matplotlib trong PySpark</small>
+    </div>
+    {% endif %}
+
+    {% if analysis_type != 'delay_prediction' %}
+        <h3>Chi tiết Dữ liệu</h3>
+        <pre style="white-space: pre-wrap; word-wrap: break-word; background: #eee; padding: 15px; border-radius: 5px;">
+{% for line in lines %}
+{{ line.strip() }}
+{% endfor %}
+        </pre>
+    {% else %}
+        <h3>Thông tin Log và Trạng thái</h3>
+        <pre style="white-space: pre-wrap; word-wrap: break-word; background: #f0f0f0; padding: 15px; border-radius: 5px;">
+{% for line in lines %}
+{{ line.strip() }}
+{% endfor %}
+        </pre>
+    {% endif %}
+    
+    <a href="{{ url_for('analysis_form') }}">⬅️ Quay lại trang Phân tích</a> | 
+    <a href="{{ url_for('browse') }}">🏠 Quay lại trang chính</a>
+</body>
+</html>

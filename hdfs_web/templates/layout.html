@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}HDFS Web App{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> 
+    <style>
+        /* CSS cho Tabs */
+        .tabs {
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+        .tabs a {
+            padding: 10px 15px;
+            text-decoration: none;
+            color: #333;
+            background: #eee;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+            margin-right: 5px;
+            display: inline-block;
+        }
+        .tabs a.active {
+            background: white;
+            border-bottom: 1px solid white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>{% block header %}Hệ thống Dữ liệu Lớn Web{% endblock %}</h1>
+
+    <div class="tabs">
+        <a href="{{ url_for('browse') }}" class="{% if request.path == '/' or 'browse' in request.path %}active{% endif %}">
+            💾 Quản lý Lưu trữ
+        </a>
+        <a href="{{ url_for('analysis_form') }}" class="{% if 'analysis' in request.path or 'result' in request.path %}active{% endif %}">
+            ⚙️ Xử lý & Phân tích Dữ liệu
+        </a>
+    </div>
+
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

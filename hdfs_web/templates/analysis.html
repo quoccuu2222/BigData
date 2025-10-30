@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+
+{% block title %}Xử lý & Phân tích Dữ liệu{% endblock %}
+{% block header %}⚙️ Công cụ Phân tích Dữ liệu Lớn{% endblock %}
+
+{% block content %}
+    <h2>1. Chọn File Dữ liệu từ HDFS</h2>
+    <form id="analysisForm" action="{{ url_for('run_analysis') }}" method="POST">
+        
+        <label for="file_select">Chọn File để Phân tích:</label>
+        <select id="file_select" name="file_path" required>
+            <option value="">-- Chọn File --</option>
+            {% for name, meta in files %}
+                <option value="/{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </select>
+        
+        <br><br>
+        <label for="analysis_type">Chọn Loại Phân tích:</label>
+        <select id="analysis_type" name="analysis_type" required>
+            <option value="line_count">Đếm số dòng (Line Count) - Cơ bản</option>
+            <option value="word_count">Đếm từ (Word Count) - Cơ bản</option>
+            
+            <option value="avg_delay_by_origin">Phân tích: Độ trễ TB theo Sân bay (ArrDelay)</option>
+            <option value="percentage_delayed_flights">Phân tích: Tỷ lệ Chuyến bay Bị Trễ (DepDelay &ge; 15min)</option>
+            <option value="delay_causes_breakdown">Phân tích: Tỷ trọng Nguyên nhân Trễ (MỚI)</option> 
+            <option value="feature_importance_analysis">**Phân tích: Tầm quan trọng của Đặc trưng (Feature Importance) - MỚI**</option>
+            <option value="delay_prediction">**Dự đoán: Độ trễ & Nguyên nhân (Lấy 1 dòng)**</option>
+        </select>
+
+        <br><br>
+        <button type="submit">▶️ Chạy Phân tích</button>
+    </form>
+    
+    <p id="analysisStatus" style="margin-top: 10px;"></p>
+    
+    <script>
+        $(document).ready(function() {
+            $('#analysisForm').on('submit', function() {
+                $('#analysisStatus').html('<span style="color: blue;">Đang chạy phân tích trên Spark/HDFS, vui lòng chờ...</span>');
+            });
+        });
+    </script>
+{% endblock %}

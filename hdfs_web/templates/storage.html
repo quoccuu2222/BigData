@@ -1,0 +1,245 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản lý Lưu trữ{% endblock %}
+{% block header %}📁 Trình duyệt HDFS{% endblock %}
+
+{% block content %}
+<div class="breadcrumbs">
+    {% for crumb in breadcrumbs %}
+    <a href="/browse{{ crumb.path }}">{{ crumb.name }}</a>
+    {% if not loop.last %} / {% endif %}
+    {% endfor %}
+</div>
+
+<!-- Container cho các thông báo chung -->
+<div id="messageContainer"
+    style="margin-bottom: 15px; padding: 10px; border-radius: 5px; display: none; font-weight: bold;"></div>
+
+<table>
+    <tr>
+        <th>Tên</th>
+        <th>Loại</th>
+        <th>Hành động</th>
+    </tr>
+    {% for entry in entries %}
+    <tr>
+        <td>
+            {% if entry.type == 'directory' %}
+            <a href="/browse{{ entry.path }}">{{ entry.name }}</a>
+            {% else %}
+            {{ entry.name }}
+            {% endif %}
+        </td>
+        <td>{{ entry.type }}</td>
+        <td>
+            {% if entry.name != '...' %}
+            {% if entry.type == 'file' %}
+            <a href="/download{{ entry.path }}" style="margin-right: 10px;">⬇️ Download</a>
+            {% elif entry.type == 'directory' %}
+            <!-- Nút Tải ZIP MỚI -->
+            <a href="/download_zip{{ entry.path }}"
+                style="background-color: #ffc107; color: black; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+                📦 Tải ZIP
+            </a>
+            {% endif %}
+
+            <!-- Nút Xóa -->
+            <button onclick="showDeleteConfirmation('{{ entry.path }}', '{{ entry.name }}', '{{ entry.type }}')"
+                style="background-color: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">
+                🗑️ Xóa
+            </button>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<div style="display: flex; gap: 20px; margin-top: 20px;">
+
+    <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; flex: 1;">
+        <h3>⬆️ Tải file lên thư mục hiện tại: `{{ current_path }}`</h3>
+        <form id="simpleUploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+            <!-- Cho phép chọn nhiều file -->
+            <input type="file" name="file" multiple required>
+            <button type="submit"
+                style="background-color: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                Upload File
+            </button>
+        </form>
+        <p id="uploadStatus"></p>
+    </div>
+
+    <div style="border: 1px solid #ccc; padding: 15px; border-radius: 5px; flex: 1;">
+        <h3>➕ Tạo thư mục mới trong `{{ current_path }}`</h3>
+        <form id="createDirForm">
+            <input type="text" name="dir_name" placeholder="Tên thư mục mới" required
+                style="padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+            <button type="submit"
+                style="background-color: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Tạo
+                Thư mục</button>
+        </form>
+        <p id="dirStatus"></p>
+    </div>
+</div>
+
+<!-- Modal xác nhận xóa tùy chỉnh (Thay thế cho window.confirm) -->
+<div id="deleteConfirmationModal"
+    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; justify-content: center; align-items: center; z-index: 100;">
+    <div
+        style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); max-width: 400px; width: 90%;">
+        <h4 style="margin-top: 0;">Xác nhận Xóa</h4>
+        <p id="confirmationText"></p>
+        <div style="text-align: right; margin-top: 20px;">
+            <button id="cancelDeleteBtn"
+                style="background-color: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Hủy
+                bỏ</button>
+            <button id="confirmDeleteBtn"
+                style="background-color: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Xóa</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Hàm hiển thị thông báo chung (success/error)
+    function showMessage(message, isError = false) {
+        const container = $('#messageContainer');
+        container.text(message);
+        container.css('display', 'block');
+        if (isError) {
+            container.css('background-color', '#f8d7da');
+            container.css('color', '#721c24');
+            container.css('border', '1px solid #f5c6cb');
+        } else {
+            container.css('background-color', '#d4edda');
+            container.css('color', '#155724');
+            container.css('border', '1px solid #c3e6cb');
+        }
+        setTimeout(() => {
+            container.fadeOut(500);
+        }, 5000);
+    }
+
+    let currentDeletePath = '';
+    let currentDeleteType = '';
+
+    // Hiển thị modal xác nhận (Thay thế cho window.confirm)
+    function showDeleteConfirmation(path, name, type) {
+        currentDeletePath = path;
+        currentDeleteType = type;
+
+        const typeText = type === 'file' ? 'tệp' : 'thư mục';
+        let message = `Bạn có chắc chắn muốn xóa ${typeText} <span style="font-style: italic;">"${name}"</span> không?`;
+
+        if (type === 'directory') {
+            message += ' <br>(LƯU Ý: Thư mục và TẤT CẢ nội dung bên trong sẽ bị xóa.)';
+        }
+
+        $('#confirmationText').html(message);
+        $('#deleteConfirmationModal').fadeIn(300);
+    }
+
+    // Xử lý logic xóa file/thư mục
+    function deleteHDFS() {
+        $('#deleteConfirmationModal').fadeOut(300); // Đóng modal ngay lập tức
+        const path = currentDeletePath;
+
+        $.ajax({
+            url: `/delete${path}`,
+            type: 'DELETE',
+            success: function (response) {
+                showMessage(response.message || 'Xóa thành công!', false);
+                setTimeout(() => {
+                    location.reload(); // Tải lại trang để cập nhật danh sách
+                }, 1000);
+            },
+            error: function (xhr, status, error) {
+                var msg = xhr.responseJSON ? xhr.responseJSON.message : (error + " (Kiểm tra console)");
+                showMessage('Xóa thất bại. Lỗi: ' + msg, true);
+                console.error("Delete error:", xhr.responseText);
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        // Gán sự kiện cho nút Xác nhận trong Modal
+        $('#confirmDeleteBtn').on('click', deleteHDFS);
+        // Gán sự kiện cho nút Hủy trong Modal
+        $('#cancelDeleteBtn').on('click', function () {
+            $('#deleteConfirmationModal').fadeOut(300);
+        });
+
+
+        // LOGIC UPLOAD
+        // LOGIC UPLOAD (hỗ trợ nhiều file)
+        $('#simpleUploadForm').on('submit', function (e) {
+            e.preventDefault();
+            var form = $(this);
+            var formData = new FormData(form[0]);
+            formData.append('path', '{{ current_path }}');
+
+            var filesCount = form.find('input[type="file"]')[0].files.length;
+            if (filesCount === 0) {
+                showMessage('Vui lòng chọn ít nhất 1 file để upload!', true);
+                return;
+            }
+
+            $('#uploadStatus').html(`<span style="color: blue;">Đang tải lên ${filesCount} file...</span>`);
+
+            $.ajax({
+                url: form.attr('action'),
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    $('#uploadStatus').text('');
+                    if (response.uploaded_files && response.uploaded_files.length) {
+                        showMessage(`✅ Upload thành công ${response.uploaded_files.length} file!`, false);
+                    } else {
+                        showMessage(response.message || 'Upload thành công!', false);
+                    }
+                    setTimeout(() => location.reload(), 1200);
+                },
+                error: function (xhr, status, error) {
+                    var msg = xhr.responseJSON ? xhr.responseJSON.message : (error + " (Kiểm tra console)");
+                    $('#uploadStatus').html('<span style="color: red;">Lỗi upload: ' + msg + '</span>');
+                    console.error("Upload error:", xhr.responseText);
+                }
+            });
+        });
+
+
+        // LOGIC TẠO THƯ MỤC
+        $('#createDirForm').on('submit', function (e) {
+            e.preventDefault();
+            var form = $(this);
+            var dirName = form.find('input[name="dir_name"]').val();
+            var postData = {
+                dir_name: dirName,
+                current_path: '{{ current_path }}'
+            };
+            $('#dirStatus').html('<span style="color: blue;">Đang tạo thư mục...</span>');
+
+            $.ajax({
+                url: '/mkdir',
+                type: 'POST',
+                data: postData,
+                success: function (response) {
+                    $('#dirStatus').text(''); // Clear local status
+                    showMessage(response.message || 'Tạo thư mục thành công!', false);
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                },
+                error: function (xhr, status, error) {
+                    var msg = xhr.responseJSON ? xhr.responseJSON.message : (error + " (Kiểm tra console)");
+                    $('#dirStatus').html('<span style="color: red;">Lỗi tạo thư mục: ' + msg + '</span>');
+                    console.error("Mkdir error:", xhr.responseText);
+                }
+            });
+        });
+    });
+</script>
+
+
+{% endblock %}
